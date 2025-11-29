@@ -34,13 +34,19 @@ export interface JournalTemplate {
     ibid: string;                                      // 반복 인용: Ibid.
   };
 
-  // 참고문헌 정렬 규칙 (공식 규정 5장)
+  // 참고문헌 정렬 규칙 (공식 규정 5장 + Claude Desktop 생성 기준)
   bibliography: {
     order: ['korean', 'foreign'];                      // 국문 먼저, 외국어 뒤
     korean_sort: 'hangul';                             // 가나다순
     foreign_sort: 'alphabet';                          // 알파벳순
     same_author_mark: string;                          // 동일 저자: _______
     hanging_indent: number;                            // 둘째 줄 들여쓰기 (cm)
+    // 섹션 헤더 (Claude Desktop 기준)
+    section_headers: {
+      korean: string;    // '<국문 자료>'
+      foreign: string;   // '<외국어 자료>'
+      none_text: string; // '(해당 없음)'
+    };
   };
 
   // 주제어 개수 (공식 규정 6장)
@@ -101,19 +107,25 @@ export interface JournalTemplate {
   title_footnote_symbol: string;  // ❉ 또는 *
   title_footnote_symbols?: string[];  // 허용되는 기호들: ['❉', '*']
 
-  // 저자 각주 형식 (2025년 기준, 단일/복수 저자 대응)
+  // 저자 정보 형식 (Claude Desktop 생성 기준)
+  author_info: {
+    // 본문 내 표시 형식 (각주 없음)
+    format_inline: string;       // '{position}, {affiliation}'
+    format_inline_full?: string; // '{position}, {department}, {affiliation}'
+    use_footnote: boolean;       // false = 본문 표시, true = 각주 표시
+  };
+
+  // 저자 각주 형식 (레거시 지원)
   author_footnote: {
-    // 2025년: 제목각주(*) 있으면 저자는 **, 없으면 *
-    single_author_symbol: string;       // 제목각주 있을 때 저자 기호 (예: **)
-    single_author_symbol_no_title?: string;  // 제목각주 없을 때 저자 기호 (예: *)
-    multi_author_symbols: string[];     // ['*', '**', '***', '****'] 반각 별표
-    multi_author_symbols_fullwidth?: string[];  // ['＊', '＊＊', '＊＊＊'] 전각 레거시
-    // 2025년 형식: {affiliation}/ {position}/ {field}/ {email}
+    single_author_symbol: string;
+    single_author_symbol_no_title?: string;
+    multi_author_symbols: string[];
+    multi_author_symbols_fullwidth?: string[];
     format_single: string;
-    format_single_variants?: string[];  // 레거시 형식들 (하위 호환)
-    format_multi: string;               // 복수저자 형식
-    start_number_with_title_footnote?: number;     // 제목각주 있으면 2번부터
-    start_number_without_title_footnote?: number;  // 제목각주 없으면 1번부터
+    format_single_variants?: string[];
+    format_multi: string;
+    start_number_with_title_footnote?: number;
+    start_number_without_title_footnote?: number;
   };
 
   // 날짜 라벨 (논문확정일자 vs 게재확정일자)
@@ -151,21 +163,21 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
   issue: 2,
   year: 2025,
 
-  // 페이지 설정 (공식: A4 10~12페이지)
+  // 페이지 설정 (Claude Desktop 생성 기준: 1인치 마진)
   page: {
     size: 'A4',
-    margins: { top: 30, bottom: 25, left: 25, right: 25 },
+    margins: { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 },  // 1인치 = 25.4mm
     recommended_pages: { min: 10, max: 12 }
   },
 
-  // 폰트 설정 (공식: 바탕체, 10pt, 줄간격 160%)
+  // 폰트 설정 (Claude Desktop 생성 기준)
   fonts: {
-    title: { family: '신명조', size: 16, bold: true },
-    subtitle: { family: '신명조', size: 14, bold: false },
-    author: { family: '신명조', size: 11 },
-    body: { family: '바탕', size: 10, line_spacing: 160 },  // 공식: 바탕체 10pt 160%
-    footnote: { family: '바탕', size: 9 },
-    header: { family: '바탕', size: 9 }
+    title: { family: 'Times New Roman', size: 16, bold: true },
+    subtitle: { family: 'Times New Roman', size: 14, bold: false },
+    author: { family: 'Times New Roman', size: 10 },
+    body: { family: 'Times New Roman', size: 10, line_spacing: 115 },  // 기본 줄간격 1.15배
+    footnote: { family: 'Times New Roman', size: 9 },
+    header: { family: 'Times New Roman', size: 9 }
   },
 
   // 인용 표기 기호 (공식 규정 4장)
@@ -177,13 +189,19 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
     ibid: 'Ibid.'                                 // 반복 인용
   },
 
-  // 참고문헌 정렬 규칙 (공식 규정 5장)
+  // 참고문헌 정렬 규칙 (공식 규정 5장 + Claude Desktop 기준)
   bibliography: {
     order: ['korean', 'foreign'],                 // 국문 먼저, 외국어 뒤
     korean_sort: 'hangul',                        // 가나다순
     foreign_sort: 'alphabet',                     // 알파벳순
     same_author_mark: '_______',                  // 동일 저자: 7개 언더바
-    hanging_indent: 1.5                           // 둘째 줄 들여쓰기 1.5cm
+    hanging_indent: 1.5,                          // 둘째 줄 들여쓰기 1.5cm
+    // 섹션 헤더 (Claude Desktop 기준)
+    section_headers: {
+      korean: '<국문 자료>',
+      foreign: '<외국어 자료>',
+      none_text: '(해당 없음)'
+    }
   },
 
   // 주제어 개수 (공식 규정 6장)
@@ -239,9 +257,16 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
     separator: '─────────────────'
   },
 
-  // 제목 각주 기호 (연구비 지원 표시) - 2025년 기준
-  title_footnote_symbol: '*',  // 2025년 기본값: * (반각 별표)
-  title_footnote_symbols: ['*', '❉'],  // 허용: *(2025), ❉(2015년 이전 레거시)
+  // 제목 각주 기호 (연구비 지원 표시)
+  title_footnote_symbol: '*',
+  title_footnote_symbols: ['*', '❉'],
+
+  // 저자 정보 형식 (Claude Desktop 생성 기준: 각주 없이 본문에 표시)
+  author_info: {
+    format_inline: '{position}, {affiliation}',  // Dean, Jeonbuk Sophia International College
+    format_inline_full: '{position}, {department}, {affiliation}',
+    use_footnote: false  // 본문에 직접 표시 (각주 사용 안 함)
+  },
 
   // 저자 각주 형식 (2025년 기준, 단일/복수 저자 대응)
   author_footnote: {
@@ -280,9 +305,9 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
     format_multi: '{name}\n({position} /\n{department}, {affiliation})'
   },
 
-  // 국문초록 제목 (2025년 기준: 붙여쓰기)
-  abstract_kr_title: '국문초록',  // 2025년 기본값 (공백 없음)
-  abstract_kr_title_variants: ['국문초록', '국문 초록'],  // 레거시: 공백 있는 형식
+  // 국문초록 제목 (Claude Desktop 생성 기준: 공백 있음)
+  abstract_kr_title: '국문 초록',  // Claude Desktop 기준 (공백 있음)
+  abstract_kr_title_variants: ['국문 초록', '국문초록'],  // 둘 다 허용
 
   // 첫 페이지 상단 헤더 (저널정보 + 페이지범위)
   first_page_header: {
