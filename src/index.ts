@@ -12,7 +12,9 @@ import {
 import { parseCitation, extractCitations } from './parsers/index.js';
 import { toFootnote, toBibliography, convertCitation, sortBibliography } from './converters/index.js';
 import { initRAG, searchCitations, getPaperCitations, getStats, isRAGInitialized } from './rag/index.js';
+import { convertEssayToPaper, toMarkdown, toWordHTML, SHINSA_TEMPLATE } from './formatter/index.js';
 import type { ParsedCitation, BatchConvertResult, CitationType } from './types/citation.js';
+import type { EssayInput, ConversionOptions } from './formatter/index.js';
 
 // MCP 서버 생성
 const server = new Server(
@@ -529,6 +531,97 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_stats',
         description: 'RAG DB 통계를 반환합니다.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+
+      // ============================================
+      // 에세이 → 논문 변환 도구 (NEW)
+      // ============================================
+      {
+        name: 'convert_essay_to_paper',
+        description: '에세이/초안을 신학과사회 저널 형식의 완전한 논문으로 변환합니다. 페이지 번호, 헤더, 섹션 번호, 각주, 참고문헌 등 정확한 형식을 적용합니다.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: '논문 제목'
+            },
+            subtitle: {
+              type: 'string',
+              description: '부제 (선택)'
+            },
+            author: {
+              type: 'string',
+              description: '저자명'
+            },
+            affiliation: {
+              type: 'string',
+              description: '소속 및 직위'
+            },
+            email: {
+              type: 'string',
+              description: '이메일 (선택)'
+            },
+            abstract_kr: {
+              type: 'string',
+              description: '국문 초록 (300자 내외)'
+            },
+            keywords_kr: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '국문 주제어 (5개)'
+            },
+            body: {
+              type: 'string',
+              description: '본문 (마크다운 또는 일반 텍스트, # 또는 I. II. 로 섹션 구분)'
+            },
+            references: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '참고문헌 목록 (자동 변환됨)'
+            },
+            abstract_en: {
+              type: 'string',
+              description: '영문 초록'
+            },
+            keywords_en: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '영문 키워드 (5개)'
+            },
+            output_format: {
+              type: 'string',
+              enum: ['markdown', 'html', 'both'],
+              default: 'markdown',
+              description: '출력 형식'
+            },
+            volume: {
+              type: 'integer',
+              description: '권 번호 (기본: 39)'
+            },
+            issue: {
+              type: 'integer',
+              description: '호 번호 (기본: 2)'
+            },
+            year: {
+              type: 'integer',
+              description: '연도 (기본: 2025)'
+            },
+            start_page: {
+              type: 'integer',
+              description: '시작 페이지 번호'
+            }
+          },
+          required: ['title', 'author', 'affiliation', 'body']
+        }
+      },
+      {
+        name: 'get_journal_template',
+        description: '신학과사회 저널의 정확한 형식 템플릿 정보를 반환합니다.',
         inputSchema: {
           type: 'object',
           properties: {}
@@ -1050,6 +1143,117 @@ ${abstractEn || '[English abstract required]'}
           content: [{ type: 'text', text: JSON.stringify({ error: String(error) }) }]
         };
       }
+    }
+
+    // ============================================
+    // 에세이 → 논문 변환 도구
+    // ============================================
+    case 'convert_essay_to_paper': {
+      const title = args?.title as string;
+      const author = args?.author as string;
+      const affiliation = args?.affiliation as string;
+      const body = args?.body as string;
+
+      if (!title || !author || !affiliation || !body) {
+        throw new Error('title, author, affiliation, body are required');
+      }
+
+      const input: EssayInput = {
+        title,
+        subtitle: args?.subtitle as string | undefined,
+        author,
+        affiliation,
+        email: args?.email as string | undefined,
+        abstract_kr: args?.abstract_kr as string | undefined,
+        keywords_kr: args?.keywords_kr as string[] | undefined,
+        body,
+        references: args?.references as string[] | undefined,
+        abstract_en: args?.abstract_en as string | undefined,
+        keywords_en: args?.keywords_en as string[] | undefined
+      };
+
+      const options: ConversionOptions = {
+        volume: args?.volume as number | undefined,
+        issue: args?.issue as number | undefined,
+        year: args?.year as number | undefined,
+        start_page: args?.start_page as number | undefined
+      };
+
+      const outputFormat = (args?.output_format as string) || 'markdown';
+
+      try {
+        const paper = convertEssayToPaper(input, options);
+
+        const result: Record<string, unknown> = {
+          metadata: paper.metadata,
+          stats: {
+            sections: paper.body.length,
+            footnotes: paper.footnotes.length,
+            references: paper.references.length,
+            estimated_pages: paper.headers.length
+          }
+        };
+
+        if (outputFormat === 'markdown' || outputFormat === 'both') {
+          result.markdown = toMarkdown(paper);
+        }
+        if (outputFormat === 'html' || outputFormat === 'both') {
+          result.html = toWordHTML(paper);
+        }
+
+        result.headers = paper.headers;
+        result.footnotes = paper.footnotes;
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: String(error) }) }]
+        };
+      }
+    }
+
+    case 'get_journal_template': {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            template: SHINSA_TEMPLATE,
+            description: {
+              journal_name: '신학과 사회',
+              page_format: {
+                size: 'A4',
+                margins: '상 30mm, 하 25mm, 좌우 25mm'
+              },
+              fonts: {
+                title: '신명조 16pt 굵게',
+                subtitle: '신명조 14pt',
+                body: '바탕 10pt',
+                footnote: '바탕 9pt',
+                line_spacing: '160%'
+              },
+              section_numbering: {
+                chapter: 'I. II. III. (로마숫자)',
+                section: '1. 2. 3. (아라비아숫자)',
+                subsection: '1) 2) 3) (괄호숫자)'
+              },
+              header_format: {
+                odd_page: '논문 제목 (오른쪽)',
+                even_page: '「신학과 사회」 권(호) 연도 (왼쪽)'
+              },
+              footnote_format: {
+                numbering: '연속 번호',
+                style: '1) 2) 3) 상첨자'
+              },
+              page_number: {
+                position: '하단 중앙',
+                format: '아라비아 숫자'
+              }
+            }
+          }, null, 2)
+        }]
+      };
     }
 
     default:
