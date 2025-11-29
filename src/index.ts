@@ -658,6 +658,95 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {}
         }
+      },
+
+      // ============================================
+      // DOCX 파일 생성 도구 (python-docx 기반)
+      // ============================================
+      {
+        name: 'create_shinsa_docx',
+        description: '신학과사회 2025년 형식의 DOCX 파일을 직접 생성합니다. python-docx를 사용하여 신국판(152x225mm), 바탕체, 정확한 마진/폰트 크기가 적용된 Word 문서를 만듭니다. Claude 스킬의 Word 변환보다 정확합니다.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: '논문 제목'
+            },
+            subtitle: {
+              type: 'string',
+              description: '부제 (선택)'
+            },
+            author: {
+              type: 'string',
+              description: '저자명 (예: 홍길동)'
+            },
+            affiliation: {
+              type: 'string',
+              description: '소속 (예: 강남대학교)'
+            },
+            field: {
+              type: 'string',
+              description: '전공 분야 (예: 조직신학)'
+            },
+            email: {
+              type: 'string',
+              description: '이메일'
+            },
+            funding: {
+              type: 'string',
+              description: '연구비 지원 정보 (선택)'
+            },
+            abstract_kr: {
+              type: 'string',
+              description: '국문 초록 (300자 내외)'
+            },
+            keywords_kr: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '국문 주제어 (5개)'
+            },
+            body: {
+              type: 'string',
+              description: '본문 (# 또는 I. II. 로 섹션 구분)'
+            },
+            references: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '참고문헌 목록'
+            },
+            abstract_en: {
+              type: 'string',
+              description: '영문 초록'
+            },
+            keywords_en: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '영문 키워드 (5개)'
+            },
+            volume: {
+              type: 'integer',
+              description: '권 번호 (기본: 39)'
+            },
+            issue: {
+              type: 'integer',
+              description: '호 번호 (기본: 2)'
+            },
+            year: {
+              type: 'integer',
+              description: '연도 (기본: 2025)'
+            },
+            start_page: {
+              type: 'integer',
+              description: '시작 페이지 번호 (기본: 1)'
+            },
+            output_path: {
+              type: 'string',
+              description: '저장 경로 (기본: 바탕화면/논문제목_신사형식.docx)'
+            }
+          },
+          required: ['title', 'author', 'affiliation', 'body']
+        }
       }
     ]
   };
@@ -1392,6 +1481,141 @@ ${abstractEn || '[English abstract required]'}
           }, null, 2)
         }]
       };
+    }
+
+    // ============================================
+    // DOCX 파일 생성 도구 (python-docx 기반)
+    // ============================================
+    case 'create_shinsa_docx': {
+      const { spawn } = await import('child_process');
+      const { writeFile, unlink, mkdir } = await import('fs/promises');
+      const path = await import('path');
+      const os = await import('os');
+
+      const title = args?.title as string;
+      const author = args?.author as string;
+      const affiliation = args?.affiliation as string;
+      const body = args?.body as string;
+
+      if (!title || !author || !affiliation || !body) {
+        throw new Error('title, author, affiliation, body are required');
+      }
+
+      // 입력 데이터 준비
+      const inputData = {
+        title,
+        subtitle: args?.subtitle as string | undefined,
+        author,
+        affiliation,
+        field: args?.field as string | undefined,
+        email: args?.email as string | undefined,
+        funding: args?.funding as string | undefined,
+        abstract_kr: args?.abstract_kr as string | undefined,
+        keywords_kr: args?.keywords_kr as string[] | undefined,
+        body,
+        references: args?.references as string[] | undefined,
+        abstract_en: args?.abstract_en as string | undefined,
+        keywords_en: args?.keywords_en as string[] | undefined,
+        volume: args?.volume as number | undefined,
+        issue: args?.issue as number | undefined,
+        year: args?.year as number | undefined,
+        start_page: args?.start_page as number | undefined
+      };
+
+      // 출력 경로 결정
+      let outputPath = args?.output_path as string;
+      if (!outputPath) {
+        const desktop = path.join(os.homedir(), 'Desktop');
+        const safeTitle = title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 50);
+        outputPath = path.join(desktop, `${safeTitle}_신사형식.docx`);
+      }
+
+      // 임시 JSON 파일 생성
+      const tempDir = os.tmpdir();
+      const tempJsonPath = path.join(tempDir, `shinsa_input_${Date.now()}.json`);
+
+      try {
+        await writeFile(tempJsonPath, JSON.stringify(inputData, null, 2), 'utf-8');
+
+        // Python 스크립트 경로
+        const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+        let scriptPath = path.join(scriptDir, '..', 'scripts', 'create_docx.py');
+
+        // Windows 경로 수정
+        if (process.platform === 'win32' && scriptPath.startsWith('/')) {
+          scriptPath = scriptPath.substring(1);
+        }
+
+        // Python 실행
+        const result = await new Promise<string>((resolve, reject) => {
+          const pythonProcess = spawn('python', [scriptPath, tempJsonPath, outputPath], {
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+          });
+
+          let stdout = '';
+          let stderr = '';
+
+          pythonProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+
+          pythonProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+
+          pythonProcess.on('close', (code) => {
+            if (code === 0) {
+              resolve(stdout);
+            } else {
+              reject(new Error(stderr || `Python exited with code ${code}`));
+            }
+          });
+
+          pythonProcess.on('error', (err) => {
+            reject(err);
+          });
+        });
+
+        // 임시 파일 삭제
+        await unlink(tempJsonPath).catch(() => {});
+
+        // 결과 파싱
+        const resultJson = JSON.parse(result);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: resultJson.success,
+              path: resultJson.path,
+              message: resultJson.message,
+              format: {
+                page_size: '신국판 (152x225mm)',
+                font: '바탕체',
+                title_size: '14pt',
+                body_size: '10.3pt',
+                line_spacing: '160%'
+              },
+              note: 'python-docx로 생성된 정확한 형식의 DOCX 파일입니다.'
+            }, null, 2)
+          }]
+        };
+
+      } catch (error) {
+        // 임시 파일 정리
+        await unlink(tempJsonPath).catch(() => {});
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              error: String(error),
+              hint: 'python-docx가 설치되어 있는지 확인하세요: pip install python-docx',
+              fallback: 'convert_essay_to_paper 도구를 사용하여 HTML/Markdown으로 변환할 수 있습니다.'
+            }, null, 2)
+          }]
+        };
+      }
     }
 
     default:
