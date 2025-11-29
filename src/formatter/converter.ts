@@ -315,47 +315,181 @@ export function toMarkdown(paper: FormattedPaper, template?: JournalTemplate): s
 }
 
 // MS Word 호환 HTML 생성 (복사-붙여넣기용)
+// 2025년 신학과사회 형식 기준 (이민규 논문 분석 기반)
 export function toWordHTML(paper: FormattedPaper, template?: JournalTemplate): string {
   const t = template || SHINSA_TEMPLATE;
+
+  // 2025년 기준 폰트 크기 (pt)
+  const fonts = t.fonts || {
+    title: { family: '바탕', size: 14, bold: true },
+    subtitle: { family: '바탕', size: 12.3, bold: false },
+    author: { family: '바탕', size: 11 },
+    body: { family: '바탕', size: 10.3, line_spacing: 160 },
+    abstract: { family: '바탕', size: 8.5 },
+    abstract_title: { family: '바탕', size: 9 },
+    section_title: { family: '바탕', size: 13, bold: true },
+    footnote: { family: '바탕', size: 8.5 },
+    header: { family: '바탕', size: 8.1 }
+  };
+
+  // 2025년 기준 페이지 설정
+  const page = t.page || {
+    size: '신국판',
+    margins: { top: 24, bottom: 25, left: 25, right: 23 }
+  };
 
   let html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <style>
-  body { font-family: '바탕', 'Batang', serif; font-size: 10pt; line-height: 1.6; }
-  h1 { font-family: '신명조', serif; font-size: 16pt; font-weight: bold; text-align: center; }
-  h2 { font-family: '신명조', serif; font-size: 12pt; font-weight: bold; }
-  h3 { font-size: 11pt; font-weight: bold; }
-  h4 { font-size: 10pt; }
-  .author { text-align: center; margin: 20px 0; }
-  .abstract { margin: 20px 30px; font-size: 9pt; }
-  .keywords { font-size: 9pt; }
-  .footnote { font-size: 9pt; }
-  .reference { margin-bottom: 10px; }
-  .header { font-size: 9pt; color: #666; }
-  sup { font-size: 8pt; }
+  /* 2025년 신학과사회 형식 - 신국판 (152x225mm) 기준 */
+  @page {
+    size: 152mm 225mm;
+    margin: ${page.margins.top}mm ${page.margins.right}mm ${page.margins.bottom}mm ${page.margins.left}mm;
+  }
+
+  body {
+    font-family: '${fonts.body.family}', '바탕', 'Batang', serif;
+    font-size: ${fonts.body.size}pt;
+    line-height: ${(fonts.body.line_spacing || 160) / 100};
+  }
+
+  /* 제목 - 14pt 굵게 */
+  h1.title {
+    font-family: '${fonts.title.family}', '바탕', serif;
+    font-size: ${fonts.title.size}pt;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 20pt;
+    margin-bottom: 10pt;
+  }
+
+  /* 부제 - 12.3pt */
+  h2.subtitle {
+    font-family: '${fonts.subtitle?.family || fonts.title.family}', '바탕', serif;
+    font-size: ${fonts.subtitle?.size || 12.3}pt;
+    font-weight: normal;
+    text-align: center;
+    margin-bottom: 15pt;
+  }
+
+  /* 장 제목 (Ⅰ. 서론) - 13pt 굵게 */
+  h2.section {
+    font-family: '${fonts.section_title?.family || fonts.title.family}', '바탕', serif;
+    font-size: ${fonts.section_title?.size || 13}pt;
+    font-weight: bold;
+    margin-top: 18pt;
+    margin-bottom: 10pt;
+  }
+
+  /* 절 제목 (1. 절제목) - 11pt */
+  h3 {
+    font-size: 11pt;
+    font-weight: bold;
+    margin-top: 12pt;
+    margin-bottom: 8pt;
+  }
+
+  /* 항 제목 (1) 소제목) - 10.3pt */
+  h4 {
+    font-size: ${fonts.body.size}pt;
+    font-weight: normal;
+    margin-top: 8pt;
+    margin-bottom: 6pt;
+  }
+
+  /* 저자 - 11pt */
+  .author {
+    font-size: ${fonts.author?.size || 11}pt;
+    text-align: center;
+    margin: 15pt 0;
+  }
+
+  /* 초록 본문 - 8.5pt */
+  .abstract {
+    margin: 10pt 20pt;
+    font-size: ${fonts.abstract?.size || 8.5}pt;
+    line-height: 1.5;
+  }
+
+  /* 초록 제목 - 9pt */
+  .abstract-title {
+    font-size: ${fonts.abstract_title?.size || 9}pt;
+    font-weight: bold;
+    margin-bottom: 8pt;
+  }
+
+  /* 주제어 - 8.5pt */
+  .keywords {
+    font-size: ${fonts.abstract?.size || 8.5}pt;
+    margin: 10pt 20pt;
+  }
+
+  /* 각주 - 8.5pt */
+  .footnote {
+    font-size: ${fonts.footnote?.size || 8.5}pt;
+  }
+
+  /* 참고문헌 */
+  .reference {
+    margin-bottom: 6pt;
+    text-indent: -20pt;
+    padding-left: 20pt;
+  }
+
+  /* 헤더 - 8.1pt */
+  .header {
+    font-size: ${fonts.header?.size || 8.1}pt;
+    color: #333;
+    margin-bottom: 15pt;
+  }
+
+  .page-range {
+    font-size: ${fonts.header?.size || 8.1}pt;
+    margin-bottom: 20pt;
+  }
+
+  sup { font-size: 7pt; }
+
+  hr {
+    border: none;
+    border-top: 0.5pt solid #999;
+    margin: 15pt 0;
+  }
+
+  p {
+    text-indent: 10pt;
+    margin: 0 0 6pt 0;
+  }
 </style>
 </head>
 <body>
 `;
 
-  // 헤더
+  // 헤더 (첫 페이지)
   html += `<div class="header">「${t.journal_name}」 ${t.volume}(${t.issue}) ${t.year}</div>\n`;
-
-  // 제목
-  html += `<h1>${paper.metadata.title}</h1>\n`;
-  if (paper.metadata.subtitle) {
-    html += `<h2 style="text-align:center; font-weight:normal;">${paper.metadata.subtitle}</h2>\n`;
+  if (paper.headers && paper.headers.length > 0) {
+    const firstPage = paper.headers[0].page;
+    const lastPage = paper.headers[paper.headers.length - 1].page;
+    html += `<div class="page-range">pp. ${firstPage} - ${lastPage}</div>\n`;
   }
 
-  // 저자
-  html += `<div class="author"><strong>${paper.metadata.author}</strong><br>${paper.metadata.affiliation}</div>\n`;
+  // 제목 - 14pt
+  html += `<h1 class="title">${paper.metadata.title}</h1>\n`;
+  if (paper.metadata.subtitle) {
+    html += `<h2 class="subtitle">${paper.metadata.subtitle}</h2>\n`;
+  }
 
-  // 국문 초록
-  html += `<hr>\n<h2>국문 초록</h2>\n`;
+  // 저자 - 11pt, 띄어쓰기
+  const authorSpaced = paper.metadata.author.split('').join(' ');
+  html += `<div class="author"><strong>${authorSpaced}</strong></div>\n`;
+
+  // 국문 초록 - 2025년 기준: "국문초록" (붙여쓰기)
+  const abstractKrTitle = t.abstract_kr_title || '국문초록';
+  html += `<hr>\n<div class="abstract-title">${abstractKrTitle}</div>\n`;
   html += `<div class="abstract">${paper.abstract_kr || '[초록]'}</div>\n`;
-  html += `<p class="keywords"><strong>주제어</strong>: ${paper.keywords_kr.join(', ') || '[주제어]'}</p>\n<hr>\n`;
+  html += `<p class="keywords"><strong>주제어:</strong> ${paper.keywords_kr.join(', ') || '[주제어]'}</p>\n<hr>\n`;
 
   // 본문
   for (const section of paper.body) {
@@ -363,12 +497,15 @@ export function toWordHTML(paper: FormattedPaper, template?: JournalTemplate): s
 
     switch (section.level) {
       case 1:
-        html += `<h2>${prefix}${section.title}</h2>\n`;
+        // 장 제목 - 13pt
+        html += `<h2 class="section">${prefix}${section.title}</h2>\n`;
         break;
       case 2:
+        // 절 제목 - 11pt
         html += `<h3>${prefix}${section.title}</h3>\n`;
         break;
       case 3:
+        // 항 제목 - 10.3pt
         html += `<h4>${prefix}${section.title}</h4>\n`;
         break;
     }
@@ -384,15 +521,47 @@ export function toWordHTML(paper: FormattedPaper, template?: JournalTemplate): s
   }
 
   // 참고문헌
-  html += `<hr>\n<h2>참고문헌</h2>\n`;
-  paper.references.forEach(ref => {
-    html += `<p class="reference">${ref}</p>\n`;
-  });
+  html += `<hr>\n<h2 class="section">참고문헌</h2>\n`;
+
+  // 국문/외국어 자료 구분
+  const koreanRefs = paper.references.filter(ref => /^[가-힣]/.test(ref.trim()));
+  const foreignRefs = paper.references.filter(ref => !/^[가-힣]/.test(ref.trim()));
+
+  if (koreanRefs.length > 0) {
+    html += `<p style="font-weight: bold; margin-top: 10pt;">&lt;국문 자료&gt;</p>\n`;
+    koreanRefs.forEach(ref => {
+      html += `<p class="reference">${ref}</p>\n`;
+    });
+  }
+
+  if (foreignRefs.length > 0) {
+    html += `<p style="font-weight: bold; margin-top: 10pt;">&lt;외국어 자료&gt;</p>\n`;
+    foreignRefs.forEach(ref => {
+      html += `<p class="reference">${ref}</p>\n`;
+    });
+  }
 
   // 영문 초록
-  html += `<hr>\n<h2>Abstract</h2>\n`;
+  html += `<hr>\n<div class="abstract-title">Abstract</div>\n`;
   html += `<div class="abstract">${paper.abstract_en || '[Abstract]'}</div>\n`;
-  html += `<p class="keywords"><strong>Keywords</strong>: ${paper.keywords_en.join(', ') || '[Keywords]'}</p>\n`;
+  html += `<p class="keywords"><strong>Keywords:</strong> ${paper.keywords_en.join(', ') || '[Keywords]'}</p>\n`;
+
+  // 저자 각주 (페이지 하단)
+  if (paper.metadata.affiliation || paper.metadata.email) {
+    const authorFootnoteSymbol = paper.metadata.funding ? '**' : '*';
+    html += `<hr>\n<div class="footnote">`;
+    if (paper.metadata.funding) {
+      html += `<p>* ${paper.metadata.funding}</p>\n`;
+    }
+    html += `<p>${authorFootnoteSymbol} ${paper.metadata.affiliation}`;
+    if (paper.metadata.field) {
+      html += `/ ${paper.metadata.field}`;
+    }
+    if (paper.metadata.email) {
+      html += `/ ${paper.metadata.email}`;
+    }
+    html += `</p></div>\n`;
+  }
 
   html += `</body></html>`;
 
