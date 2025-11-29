@@ -8,19 +8,22 @@ export interface JournalTemplate {
   issue: number;
   year: number;
 
-  // 페이지 설정 (공식: A4 10~12페이지)
+  // 페이지 설정 (2025년: 신국판 152x225mm)
   page: {
-    size: 'A4';
+    size: 'A4' | '신국판' | string;
     margins: { top: number; bottom: number; left: number; right: number };
     recommended_pages: { min: number; max: number };
   };
 
-  // 폰트 설정 (공식: 바탕체, 10pt, 줄간격 160%)
+  // 폰트 설정 (2025년 실제 논문 기준)
   fonts: {
     title: { family: string; size: number; bold: boolean };
     subtitle: { family: string; size: number; bold: boolean };
     author: { family: string; size: number };
-    body: { family: string; size: number; line_spacing: number };  // 줄간격 추가
+    body: { family: string; size: number; line_spacing: number };
+    abstract?: { family: string; size: number };           // 초록 본문 8.5pt
+    abstract_title?: { family: string; size: number };     // 초록 제목 9pt
+    section_title?: { family: string; size: number; bold: boolean }; // 섹션 제목 13pt
     footnote: { family: string; size: number };
     header: { family: string; size: number };
   };
@@ -163,21 +166,24 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
   issue: 2,
   year: 2025,
 
-  // 페이지 설정 (Claude Desktop 생성 기준: 1인치 마진)
+  // 페이지 설정 (2025년 실제 논문 기준: 신국판)
   page: {
-    size: 'A4',
-    margins: { top: 25.4, bottom: 25.4, left: 25.4, right: 25.4 },  // 1인치 = 25.4mm
+    size: '신국판',  // 152x225mm (A4가 아님!)
+    margins: { top: 24, bottom: 25, left: 25, right: 23 },  // 실측값 (mm)
     recommended_pages: { min: 10, max: 12 }
   },
 
-  // 폰트 설정 (Claude Desktop 생성 기준)
+  // 폰트 설정 (2025년 실제 논문 기준)
   fonts: {
-    title: { family: 'Times New Roman', size: 16, bold: true },
-    subtitle: { family: 'Times New Roman', size: 14, bold: false },
-    author: { family: 'Times New Roman', size: 10 },
-    body: { family: 'Times New Roman', size: 10, line_spacing: 115 },  // 기본 줄간격 1.15배
-    footnote: { family: 'Times New Roman', size: 9 },
-    header: { family: 'Times New Roman', size: 9 }
+    title: { family: '바탕', size: 14, bold: true },        // 논문 제목 14pt
+    subtitle: { family: '바탕', size: 12.3, bold: false },  // 부제 12.3pt
+    author: { family: '바탕', size: 11 },                   // 저자명 11pt (띄어쓰기: 이 민 규)
+    body: { family: '바탕', size: 10.3, line_spacing: 160 }, // 본문 10.3pt
+    abstract: { family: '바탕', size: 8.5 },                // 초록 본문 8.5pt
+    abstract_title: { family: '바탕', size: 9 },            // 국문초록/Abstract 제목 9pt
+    section_title: { family: '바탕', size: 13, bold: true }, // 섹션 제목 (Ⅰ. 서론) 13pt
+    footnote: { family: '바탕', size: 8.5 },                // 각주 8.5pt
+    header: { family: '바탕', size: 8.1 }                   // 헤더 8.1pt
   },
 
   // 인용 표기 기호 (공식 규정 4장)
@@ -261,11 +267,11 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
   title_footnote_symbol: '*',
   title_footnote_symbols: ['*', '❉'],
 
-  // 저자 정보 형식 (Claude Desktop 생성 기준: 각주 없이 본문에 표시)
+  // 저자 정보 형식 (2025년 실제 논문 기준: 각주 사용)
   author_info: {
-    format_inline: '{position}, {affiliation}',  // Dean, Jeonbuk Sophia International College
+    format_inline: '{position}, {affiliation}',  // 레거시/영문용
     format_inline_full: '{position}, {department}, {affiliation}',
-    use_footnote: false  // 본문에 직접 표시 (각주 사용 안 함)
+    use_footnote: true  // 2025년 기준: 각주 사용 (** 형식)
   },
 
   // 저자 각주 형식 (2025년 기준, 단일/복수 저자 대응)
@@ -305,9 +311,9 @@ export const SHINSA_TEMPLATE: JournalTemplate = {
     format_multi: '{name}\n({position} /\n{department}, {affiliation})'
   },
 
-  // 국문초록 제목 (Claude Desktop 생성 기준: 공백 있음)
-  abstract_kr_title: '국문 초록',  // Claude Desktop 기준 (공백 있음)
-  abstract_kr_title_variants: ['국문 초록', '국문초록'],  // 둘 다 허용
+  // 국문초록 제목 (2025년 실제 논문 기준: 붙여쓰기)
+  abstract_kr_title: '국문초록',  // 2025년 기준 (공백 없음, 붙여쓰기)
+  abstract_kr_title_variants: ['국문초록', '국문 초록'],  // 붙여쓰기 우선
 
   // 첫 페이지 상단 헤더 (저널정보 + 페이지범위)
   first_page_header: {

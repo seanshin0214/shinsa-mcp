@@ -12,7 +12,8 @@ import {
 import { parseCitation, extractCitations } from './parsers/index.js';
 import { toFootnote, toBibliography, convertCitation, sortBibliography } from './converters/index.js';
 import { initRAG, searchCitations, getPaperCitations, getStats, isRAGInitialized } from './rag/index.js';
-import { convertEssayToPaper, toMarkdown, toWordHTML, SHINSA_TEMPLATE } from './formatter/index.js';
+import { convertEssayToPaper, toMarkdown, toWordHTML, SHINSA_TEMPLATE, SHINSA_2025_CHECKLIST, getChecklistSummary, checkItem, generateValidationReport } from './formatter/index.js';
+import type { FormatCheckResult } from './formatter/index.js';
 import type { ParsedCitation, BatchConvertResult, CitationType } from './types/citation.js';
 import type { EssayInput, ConversionOptions } from './formatter/index.js';
 
@@ -626,6 +627,37 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {}
         }
+      },
+
+      // ============================================
+      // 2025년 형식 검증 도구 (NEW)
+      // ============================================
+      {
+        name: 'validate_format',
+        description: '논문이 2025년 신학과사회 형식 기준을 충족하는지 상세 검증합니다. 페이지 설정, 폰트 크기, 구조, 저자 정보, 섹션 번호, 참고문헌 등 30개 이상 항목을 체크합니다.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            checks: {
+              type: 'object',
+              description: '검증할 항목들 (체크리스트 ID를 키로, 실제값을 값으로)',
+              additionalProperties: true
+            },
+            get_checklist: {
+              type: 'boolean',
+              default: false,
+              description: 'true이면 체크리스트만 반환 (검증 수행 안 함)'
+            }
+          }
+        }
+      },
+      {
+        name: 'get_format_checklist',
+        description: '2025년 신학과사회 논문 형식 체크리스트를 반환합니다. 검증 전 참고용.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
       }
     ]
   };
@@ -1223,32 +1255,138 @@ ${abstractEn || '[English abstract required]'}
             description: {
               journal_name: '신학과 사회',
               page_format: {
-                size: 'A4',
-                margins: '상 30mm, 하 25mm, 좌우 25mm'
+                size: '신국판 (152x225mm)',
+                margins: '상 24mm, 하 25mm, 좌 25mm, 우 23mm'
               },
               fonts: {
-                title: '신명조 16pt 굵게',
-                subtitle: '신명조 14pt',
-                body: '바탕 10pt',
-                footnote: '바탕 9pt',
+                title: '바탕 14pt 굵게',
+                subtitle: '바탕 12.3pt',
+                author: '바탕 11pt',
+                body: '바탕 10.3pt',
+                abstract: '바탕 8.5pt',
+                abstract_title: '바탕 9pt',
+                section_title: '바탕 13pt 굵게',
+                footnote: '바탕 8.5pt',
+                header: '바탕 8.1pt',
                 line_spacing: '160%'
               },
               section_numbering: {
-                chapter: 'I. II. III. (로마숫자)',
+                chapter: 'Ⅰ. Ⅱ. Ⅲ. (로마숫자)',
                 section: '1. 2. 3. (아라비아숫자)',
                 subsection: '1) 2) 3) (괄호숫자)'
               },
               header_format: {
-                odd_page: '논문 제목 (오른쪽)',
-                even_page: '「신학과 사회」 권(호) 연도 (왼쪽)'
+                first_page: '신학과 사회 39(2) 2025   pp. 29 - 54',
+                even_page: '신학과 사회 39(2) 2025'
               },
-              footnote_format: {
-                numbering: '연속 번호',
-                style: '1) 2) 3) 상첨자'
+              author_footnote: {
+                format: '{affiliation}/ {position}/ {field}/ {email}',
+                symbol_with_title: '**',
+                symbol_without_title: '*'
               },
+              abstract_kr_title: '국문초록 (붙여쓰기)',
               page_number: {
                 position: '하단 중앙',
                 format: '아라비아 숫자'
+              }
+            }
+          }, null, 2)
+        }]
+      };
+    }
+
+    // ============================================
+    // 2025년 형식 검증 도구
+    // ============================================
+    case 'validate_format': {
+      const checks = args?.checks as Record<string, string | number | boolean | null> | undefined;
+      const getChecklist = args?.get_checklist as boolean;
+
+      // 체크리스트만 요청하는 경우
+      if (getChecklist) {
+        return {
+          content: [{
+            type: 'text',
+            text: getChecklistSummary()
+          }]
+        };
+      }
+
+      // 검증 수행
+      if (!checks || Object.keys(checks).length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              error: 'checks 파라미터가 필요합니다.',
+              hint: '체크리스트를 먼저 확인하려면 get_checklist: true를 사용하세요.',
+              available_checks: SHINSA_2025_CHECKLIST.map(item => ({
+                id: item.id,
+                name: item.name,
+                expected: item.expected,
+                category: item.category
+              }))
+            }, null, 2)
+          }]
+        };
+      }
+
+      const results: FormatCheckResult[] = [];
+
+      for (const item of SHINSA_2025_CHECKLIST) {
+        if (item.id in checks) {
+          const result = checkItem(item, checks[item.id]);
+          results.push(result);
+        }
+      }
+
+      if (results.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              error: '유효한 체크 항목이 없습니다.',
+              provided_keys: Object.keys(checks),
+              valid_keys: SHINSA_2025_CHECKLIST.map(item => item.id)
+            }, null, 2)
+          }]
+        };
+      }
+
+      const report = generateValidationReport(results);
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            ...report,
+            checklist_version: '2025',
+            based_on: '2-39-2 이민규 (2025) 실제 논문 분석'
+          }, null, 2)
+        }]
+      };
+    }
+
+    case 'get_format_checklist': {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            version: '2025',
+            based_on: '2-39-2 이민규 (2025) 실제 논문 분석',
+            checklist: SHINSA_2025_CHECKLIST,
+            summary: getChecklistSummary(),
+            usage: {
+              validate_format: {
+                description: 'validate_format 도구에 checks 파라미터로 검증할 항목을 전달하세요.',
+                example: {
+                  checks: {
+                    font_title: 14,
+                    font_body: 10.3,
+                    page_size: '신국판',
+                    abstract_kr_title: '국문초록'
+                  }
+                }
               }
             }
           }, null, 2)

@@ -41,3 +41,15 @@ export {
   toMarkdown,
   toWordHTML
 } from './converter.js';
+
+// 2025년 형식 체크리스트
+export {
+  SHINSA_2025_CHECKLIST,
+  getChecklistByCategory,
+  getChecklistSummary,
+  checkItem,
+  generateValidationReport,
+  type FormatCheckItem,
+  type FormatCheckResult,
+  type ValidationReport
+} from './checklist.js';
